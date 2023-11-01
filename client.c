@@ -1,48 +1,57 @@
-// Client side C/C++ program to demonstrate Socket
-// programming
 #include <arpa/inet.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#define PORT 8080
+#include <netdb.h>
+#define PORT "8888"
 
 int main(int argc, char const* argv[])
 {
-	int status, valread, client_fd;
-	struct sockaddr_in serv_addr;
-	char* hello = "Hello from client";
-	char buffer[1024] = { 0 };
-	if ((client_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-		printf("\n Socket creation error \n");
-		return -1;
-	}
+    int status, valread, client_fd;
+    struct sockaddr_in serv_addr;
+    char buffer[1024] = { 0 };
+    struct addrinfo hints, *res;
+    int counts = 0;
 
-	serv_addr.sin_family = AF_INET;
-	serv_addr.sin_port = htons(PORT);
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
 
-	// Convert IPv4 and IPv6 addresses from text to binary
-	// form
-	if (inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr)
-		<= 0) {
-		printf(
-			"\nInvalid address/ Address not supported \n");
-		return -1;
-	}
+    getaddrinfo("localhost", PORT, &hints, &res);
+    char str[100];
+    printf("client started.\nEnter message to send: ");
+    scanf("%[^\n]s",str);
 
-	if ((status
-		= connect(client_fd, (struct sockaddr*)&serv_addr,
-				sizeof(serv_addr)))
-		< 0) {
-		printf("\nConnection Failed \n");
-		return -1;
-	}
-	send(client_fd, hello, strlen(hello), 0);
-	printf("Hello message sent\n");
-	valread = read(client_fd, buffer, 1024 - 1); // subtract 1 for the null terminator at the end
-	printf("%s\n", buffer);
+    if ((client_fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) < 0) {
+        printf("\n Socket creation error \n");
+        return -1;
+    }
 
-	// closing the connected socket
-	close(client_fd);
-	return 0;
+    if ((status
+        = connect(client_fd, res->ai_addr,res->ai_addrlen))
+        < 0) {
+        printf("\nConnection Failed \n");
+        return -1;
+    }
+    send(client_fd, str, sizeof(str), 0);
+
+    while(read(client_fd, buffer, 1023)){
+        printf("%s", buffer);
+        memset(buffer, 0, sizeof(buffer));
+        sprintf(buffer,"ping:%d",counts);
+        if(counts++ >5) {
+            send(client_fd, "exit",4,0);
+            printf("exit sent");
+            break;
+        } else {
+            send(client_fd, buffer, sizeof(buffer), 0);
+        }
+        printf("sending :%s\n", buffer);
+        usleep(500);
+    }
+
+    close(client_fd);
+    return 0;
 }
